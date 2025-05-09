@@ -1,51 +1,73 @@
 <?php
-require 'vendor/autoload.php'; // if using Composer for dotenv
-
-use Dotenv\Dotenv;
-
-$dotenv = Dotenv::createImmutable(__DIR__);
-$dotenv->load();
-
-// Load env vars
-$host = $_ENV['DB_HOST'];
-$db   = $_ENV['DB_NAME'];
-$user = $_ENV['DB_USER'];
-$pass = $_ENV['DB_PASS'];
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+// Load database credentials from environment variables
+$host = "DATABASE";
+$db   = "test";
+$user = "admin";
+$pass = "PASSWORD";
 $charset = 'utf8mb4';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+// PDO setup
+$dsn = "mysql:host=$host;dbname=$db";
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
 ];
 
-// Connect to RDS
+
+// Connect to DB
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
-    die("DB connection failed: " . $e->getMessage());
+    die("DB connection failed: $host" . $e->getMessage());
 }
 
-// Handle Form Actions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['create'])) {
-        $stmt = $pdo->prepare("INSERT INTO users (name, email) VALUES (?, ?)");
-        $stmt->execute([$_POST['name'], $_POST['email']]);
-    } elseif (isset($_POST['update'])) {
-        $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ? WHERE id = ?");
-        $stmt->execute([$_POST['name'], $_POST['email'], $_POST['id']]);
-    } elseif (isset($_POST['delete'])) {
-        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
-        $stmt->execute([$_POST['id']]);
+// initilize if the table is not created
+$initFlag ='/tmp/.db_initialized';
+
+if (!file_exists($initFlag)) {
+    $tableSql = "
+    CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;
+    ";
+    
+    try {
+        $pdo->exec($tableSql);
+        // Create the flag file to skip next time
+        file_put_contents($initFlag, "initialized");
+    } catch (PDOException $e) {
+        die(" Failed to create table: " . $e->getMessage());
     }
 }
 
-// Fetch Users
+// Handle Form Requests
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $id    = $_POST['id'] ?? null;
+    $name  = $_POST['name'] ?? null;
+    $email = $_POST['email'] ?? null;
+
+    if (isset($_POST['create'])) {
+        $stmt = $pdo->prepare("INSERT INTO users (name, email) VALUES (?, ?)");
+        $stmt->execute([$name, $email]);
+    } elseif (isset($_POST['update'])) {
+        $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ? WHERE id = ?");
+        $stmt->execute([$name, $email, $id]);
+    } elseif (isset($_POST['delete'])) {
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->execute([$id]);
+    }
+}
+
+// Fetch all users
 $users = $pdo->query("SELECT * FROM users")->fetchAll();
 ?>
-
-<!DOCTYPE html>
 <html>
 <head>
     <title>RDS CRUD</title>
