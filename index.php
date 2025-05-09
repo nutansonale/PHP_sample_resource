@@ -75,7 +75,7 @@ $users = $pdo->query("SELECT * FROM users")->fetchAll();
 <body>
     <h2>Create / Update User</h2>
     <form method="POST">
-        <input type="hidden" name="id" placeholder="ID (for update/delete)">
+        <input type="number" name="id" placeholder="ID (for update only)">
         <input type="text" name="name" placeholder="Name" required>
         <input type="email" name="email" placeholder="Email" required>
         <button type="submit" name="create">Create</button>
